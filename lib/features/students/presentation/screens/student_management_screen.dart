@@ -6,8 +6,10 @@ import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/loading_state.dart';
 import '../../../../core/widgets/page_header.dart';
+import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../../data/models/student_model.dart';
 import '../controllers/student_controller.dart';
+import '../widgets/student_csv_import_dialog.dart';
 import '../widgets/student_details_dialog.dart';
 import '../widgets/student_form_dialog.dart';
 
@@ -28,7 +30,7 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
     super.dispose();
   }
 
-  void _showAddStudentModal(BuildContext context) async {
+  void _showAddStudentModal(BuildContext context, AuthController authController) async {
     final controller = context.read<StudentController>();
     final messenger = ScaffoldMessenger.of(context);
     final newStudent = await showDialog<StudentModel>(
@@ -37,7 +39,10 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
     );
 
     if (newStudent != null && mounted) {
-      final success = await controller.addStudent(newStudent);
+      final success = await controller.addStudent(
+        newStudent,
+        isAdmin: authController.isAdmin,
+      );
       if (success) {
         messenger.showSnackBar(
           SnackBar(
@@ -50,7 +55,11 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
     }
   }
 
-  void _showEditStudentModal(BuildContext context, StudentModel student) async {
+  void _showEditStudentModal(
+    BuildContext context,
+    StudentModel student,
+    AuthController authController,
+  ) async {
     final controller = context.read<StudentController>();
     final messenger = ScaffoldMessenger.of(context);
     final updated = await showDialog<StudentModel>(
@@ -59,7 +68,10 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
     );
 
     if (updated != null && mounted) {
-      final success = await controller.updateStudent(updated);
+      final success = await controller.updateStudent(
+        updated,
+        isAdmin: authController.isAdmin,
+      );
       if (success) {
         messenger.showSnackBar(
           SnackBar(
@@ -70,7 +82,11 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
     }
   }
 
-  void _confirmDelete(BuildContext context, StudentModel student) {
+  void _confirmDelete(
+    BuildContext context,
+    StudentModel student,
+    AuthController authController,
+  ) {
     final messenger = ScaffoldMessenger.of(context);
     final controller = context.read<StudentController>();
     showDialog(
@@ -89,7 +105,10 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () async {
               Navigator.of(ctx).pop();
-              final success = await controller.deleteStudent(student.id);
+              final success = await controller.deleteStudent(
+                student.id,
+                isAdmin: authController.isAdmin,
+              );
               if (success && mounted) {
                 messenger.showSnackBar(
                   SnackBar(content: Text('Student ${student.name} deleted.')),
@@ -106,6 +125,7 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<StudentController>();
+    final authController = context.watch<AuthController>();
     final students = controller.students;
 
     return Scaffold(
@@ -119,13 +139,80 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
               subtitle:
                   'Manage student enrollments, academic credits, behavioral clusters, and attendance records',
               actions: [
-                ElevatedButton.icon(
-                  onPressed: () => _showAddStudentModal(context),
-                  icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
-                  label: const Text('Add Student'),
-                ),
+                if (authController.isAdmin) ...[
+                  OutlinedButton.icon(
+                    onPressed: () => showDialog(
+                      context: context,
+                      builder: (_) => const StudentCsvImportDialog(),
+                    ),
+                    icon: const Icon(Icons.file_upload_outlined, size: 18),
+                    label: const Text('Import CSV'),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: () => _showAddStudentModal(context, authController),
+                    icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                    label: const Text('Add Student'),
+                  ),
+                ],
               ],
             ),
+
+            if (controller.errorMessage != null) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.errorLight,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.error.withAlpha(80)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error_outline, color: AppColors.error, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        controller.errorMessage!,
+                        style: const TextStyle(color: AppColors.error, fontSize: 13),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 16, color: AppColors.error),
+                      onPressed: () => controller.clearMessages(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            if (controller.successMessage != null) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.successLight,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.success.withAlpha(80)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_circle_outline, color: AppColors.success, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        controller.successMessage!,
+                        style: const TextStyle(color: AppColors.success, fontSize: 13),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 16, color: AppColors.success),
+                      onPressed: () => controller.clearMessages(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
 
             // Filters & Search Bar Card
             AppCard(
@@ -521,28 +608,35 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
                                                 ),
                                           ),
                                         ),
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.edit_outlined,
-                                            size: 18,
+                                        if (authController.isAdmin) ...[
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.edit_outlined,
+                                              size: 18,
+                                            ),
+                                            tooltip: 'Edit Student',
+                                            onPressed: () =>
+                                                _showEditStudentModal(
+                                                  context,
+                                                  student,
+                                                  authController,
+                                                ),
                                           ),
-                                          tooltip: 'Edit Student',
-                                          onPressed: () =>
-                                              _showEditStudentModal(
-                                                context,
-                                                student,
-                                              ),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.delete_outline,
-                                            size: 18,
-                                            color: AppColors.error,
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.delete_outline,
+                                              size: 18,
+                                              color: AppColors.error,
+                                            ),
+                                            tooltip: 'Delete Student',
+                                            onPressed: () =>
+                                                _confirmDelete(
+                                                  context,
+                                                  student,
+                                                  authController,
+                                                ),
                                           ),
-                                          tooltip: 'Delete Student',
-                                          onPressed: () =>
-                                              _confirmDelete(context, student),
-                                        ),
+                                        ],
                                       ],
                                     ),
                                   ),

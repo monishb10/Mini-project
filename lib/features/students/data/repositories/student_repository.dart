@@ -1,4 +1,6 @@
+import '../models/csv_import_result.dart';
 import '../models/student_model.dart';
+import '../utils/student_csv_parser.dart';
 
 abstract class StudentRepository {
   Future<List<StudentModel>> getStudents({
@@ -8,9 +10,11 @@ abstract class StudentRepository {
     String? searchQuery,
   });
   Future<StudentModel?> getStudentById(String id);
-  Future<StudentModel> addStudent(StudentModel student);
-  Future<StudentModel> updateStudent(StudentModel student);
-  Future<void> deleteStudent(String id);
+  Future<StudentModel?> getStudentByRollNumber(String rollNumber);
+  Future<StudentModel> addStudent(StudentModel student, {bool isAdmin = true});
+  Future<StudentModel> updateStudent(StudentModel student, {bool isAdmin = true});
+  Future<void> deleteStudent(String id, {bool isAdmin = true});
+  Future<CsvImportResult> importStudentsFromCsv(String csvContent, {bool isAdmin = true});
 }
 
 class MockStudentRepository implements StudentRepository {
@@ -244,29 +248,107 @@ class MockStudentRepository implements StudentRepository {
   }
 
   @override
-  Future<StudentModel> addStudent(StudentModel student) async {
-    await Future.delayed(const Duration(milliseconds: 300));
+  Future<StudentModel?> getStudentByRollNumber(String rollNumber) async {
+    await Future.delayed(const Duration(milliseconds: 80));
+    try {
+      return _students.firstWhere(
+        (s) => s.rollNumber.toLowerCase().trim() == rollNumber.toLowerCase().trim(),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<StudentModel> addStudent(StudentModel student, {bool isAdmin = true}) async {
+    await Future.delayed(const Duration(milliseconds: 250));
+
+    // Admin authorization check
+    if (!isAdmin) {
+      throw Exception(
+        'Access Denied: Only institutional administrators are authorized to create student records.',
+      );
+    }
+
+    // Duplicate studentId / rollNumber prevention
+    final isDuplicate = _students.any(
+      (s) => s.rollNumber.toLowerCase().trim() == student.rollNumber.toLowerCase().trim(),
+    );
+    if (isDuplicate) {
+      throw Exception(
+        'Duplicate Student ID Error: A student with ID "${student.rollNumber}" already exists in the system.',
+      );
+    }
+
     final newStudent = student.copyWith(
-      id: 'std_${DateTime.now().millisecondsSinceEpoch}',
+      id: student.id.isNotEmpty ? student.id : 'std_${DateTime.now().millisecondsSinceEpoch}',
     );
     _students.insert(0, newStudent);
     return newStudent;
   }
 
   @override
-  Future<StudentModel> updateStudent(StudentModel student) async {
-    await Future.delayed(const Duration(milliseconds: 300));
+  Future<StudentModel> updateStudent(StudentModel student, {bool isAdmin = true}) async {
+    await Future.delayed(const Duration(milliseconds: 250));
+
+    if (!isAdmin) {
+      throw Exception(
+        'Access Denied: Only institutional administrators are authorized to modify protected student records.',
+      );
+    }
+
     final index = _students.indexWhere((s) => s.id == student.id);
     if (index != -1) {
+      // Prevent changing to another student's rollNumber
+      final rollConflict = _students.any(
+        (s) => s.id != student.id && s.rollNumber.toLowerCase().trim() == student.rollNumber.toLowerCase().trim(),
+      );
+      if (rollConflict) {
+        throw Exception(
+          'Duplicate Student ID Error: Student ID "${student.rollNumber}" is already in use by another student.',
+        );
+      }
+
       _students[index] = student;
       return student;
     }
-    throw Exception('Student with id ${student.id} not found');
+    throw Exception('Student with id ${student.id} not found.');
   }
 
   @override
-  Future<void> deleteStudent(String id) async {
+  Future<void> deleteStudent(String id, {bool isAdmin = true}) async {
     await Future.delayed(const Duration(milliseconds: 200));
+
+    if (!isAdmin) {
+      throw Exception(
+        'Access Denied: Only institutional administrators are authorized to remove student records.',
+      );
+    }
+
     _students.removeWhere((s) => s.id == id);
+  }
+
+  @override
+  Future<CsvImportResult> importStudentsFromCsv(String csvContent, {bool isAdmin = true}) async {
+    await Future.delayed(const Duration(milliseconds: 400));
+
+    if (!isAdmin) {
+      throw Exception(
+        'Access Denied: Only institutional administrators are authorized to perform CSV student batch imports.',
+      );
+    }
+
+    final existingIds = _students.map((s) => s.rollNumber.toLowerCase().trim()).toSet();
+    final parseResult = StudentCsvParser.parse(
+      csvContent: csvContent,
+      existingStudentIds: existingIds,
+    );
+
+    // Insert valid parsed students
+    for (final newStudent in parseResult.importedStudents) {
+      _students.insert(0, newStudent);
+    }
+
+    return parseResult;
   }
 }

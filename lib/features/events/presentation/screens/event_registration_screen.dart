@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/constants/app_constants.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/loading_state.dart';
 import '../../../../core/widgets/page_header.dart';
+import '../../../auth/data/models/user_model.dart';
+import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../controllers/event_controller.dart';
 
 class EventRegistrationScreen extends StatefulWidget {
@@ -21,15 +22,105 @@ class _EventRegistrationScreenState extends State<EventRegistrationScreen> {
   final _searchController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = context.read<AuthController>();
+      context.read<EventController>().loadEvents(
+            currentUserId: auth.currentUser?.uid,
+          );
+    });
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
 
+  Future<void> _handleRegister({
+    required EventController controller,
+    required String eventId,
+    required UserModel? user,
+  }) async {
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please log in with a valid student account to register.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final success = await controller.registerStudent(
+      eventId: eventId,
+      student: user,
+    );
+    if (success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            controller.successMessage ?? 'Registration successfully confirmed!',
+          ),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleCancelRegistration({
+    required EventController controller,
+    required String eventId,
+    required String eventTitle,
+    required UserModel? user,
+  }) async {
+    if (user == null) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel Event Registration?'),
+        content: Text(
+          'Are you sure you want to surrender your slot for "$eventTitle"? You can re-register if slots remain open before the deadline.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Keep Slot'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Cancel Registration'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      final success = await controller.cancelStudentRegistration(
+        eventId: eventId,
+        student: user,
+      );
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Registration cancelled for "$eventTitle".'),
+            backgroundColor: AppColors.warning,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final controller = context.watch<EventController>();
+    final authController = context.watch<AuthController>();
+    final currentUser = authController.currentUser;
     final events = controller.events;
 
     return Scaffold(
@@ -44,7 +135,78 @@ class _EventRegistrationScreenState extends State<EventRegistrationScreen> {
                   'Enroll in upcoming technical symposiums, hackathons, seminars, and sports meets to accrue activity credits',
             ),
 
-            // Search & Category Chips
+            // Feedback Banners
+            if (controller.errorMessage != null) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.errorLight,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.error.withAlpha(80)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      color: AppColors.error,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        controller.errorMessage!,
+                        style: const TextStyle(
+                          color: AppColors.error,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 16, color: AppColors.error),
+                      onPressed: () => controller.clearMessages(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            if (controller.successMessage != null) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.successLight,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.success.withAlpha(80)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.check_circle_outline,
+                      color: AppColors.success,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        controller.successMessage!,
+                        style: const TextStyle(
+                          color: AppColors.success,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 16, color: AppColors.success),
+                      onPressed: () => controller.clearMessages(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            // Search & Category Chips Card
             AppCard(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -72,26 +234,30 @@ class _EventRegistrationScreenState extends State<EventRegistrationScreen> {
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
-                      children:
-                          [
-                            'All Categories',
-                            ...AppConstants.eventCategories,
-                          ].map((cat) {
-                            final isSelected =
-                                controller.selectedCategory == cat;
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: ChoiceChip(
-                                label: Text(
-                                  cat,
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                                selected: isSelected,
-                                onSelected: (_) =>
-                                    controller.filterCategory(cat),
-                              ),
-                            );
-                          }).toList(),
+                      children: [
+                        'All Categories',
+                        'Technical',
+                        'Workshop',
+                        'Seminar',
+                        'Cultural',
+                        'Sports',
+                        'Social Service',
+                        'Hackathons & Ideathons',
+                        'Leadership & Governance',
+                      ].map((cat) {
+                        final isSelected = controller.selectedCategory == cat;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(
+                              cat,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            selected: isSelected,
+                            onSelected: (_) => controller.filterCategory(cat),
+                          ),
+                        );
+                      }).toList(),
                     ),
                   ),
                 ],
@@ -117,7 +283,8 @@ class _EventRegistrationScreenState extends State<EventRegistrationScreen> {
               LayoutBuilder(
                 builder: (context, constraints) {
                   final width = constraints.maxWidth;
-                  int crossAxisCount = width < 720 ? 1 : (width < 1150 ? 2 : 3);
+                  int crossAxisCount =
+                      width < 720 ? 1 : (width < 1180 ? 2 : 3);
 
                   return GridView.builder(
                     shrinkWrap: true,
@@ -126,13 +293,15 @@ class _EventRegistrationScreenState extends State<EventRegistrationScreen> {
                       crossAxisCount: crossAxisCount,
                       crossAxisSpacing: 16,
                       mainAxisSpacing: 16,
-                      childAspectRatio: width < 720 ? 1.35 : 1.18,
+                      childAspectRatio: width < 720 ? 1.3 : 1.15,
                     ),
                     itemCount: events.length,
                     itemBuilder: (context, index) {
                       final event = events[index];
                       final isRegistered = event.isRegistered;
                       final isFull = event.isFull && !isRegistered;
+                      final isClosed =
+                          event.isRegistrationClosed || event.status != 'Upcoming';
 
                       return AppCard(
                         padding: const EdgeInsets.all(20),
@@ -209,11 +378,12 @@ class _EventRegistrationScreenState extends State<EventRegistrationScreen> {
                               overflow: TextOverflow.ellipsis,
                             ),
                             const Spacer(),
+                            // Date and Location
                             Row(
                               children: [
                                 const Icon(
-                                  Icons.schedule_outlined,
-                                  size: 14,
+                                  Icons.calendar_today_outlined,
+                                  size: 13,
                                   color: AppColors.textMutedLight,
                                 ),
                                 const SizedBox(width: 4),
@@ -238,7 +408,42 @@ class _EventRegistrationScreenState extends State<EventRegistrationScreen> {
                                 ),
                               ],
                             ),
+                            const SizedBox(height: 6),
+                            // Registration Deadline Indicator
+                            Row(
+                              children: [
+                                Icon(
+                                  isClosed
+                                      ? Icons.timer_off_outlined
+                                      : Icons.schedule_outlined,
+                                  size: 13,
+                                  color: isClosed
+                                      ? AppColors.error
+                                      : AppColors.textMutedLight,
+                                ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    event.isRegistrationClosed
+                                        ? 'Registration Closed (${DateFormat.MMMd().format(event.effectiveRegistrationDeadline)})'
+                                        : 'Deadline: ${DateFormat.MMMd().add_jm().format(event.effectiveRegistrationDeadline)}',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: isClosed
+                                          ? FontWeight.w600
+                                          : FontWeight.normal,
+                                      color: isClosed
+                                          ? AppColors.error
+                                          : AppColors.textSecondaryLight,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
                             const SizedBox(height: 10),
+                            // Capacity & spots left
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
@@ -263,7 +468,24 @@ class _EventRegistrationScreenState extends State<EventRegistrationScreen> {
                                 ),
                               ],
                             ),
+                            const SizedBox(height: 4),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: event.occupancyRate,
+                                minHeight: 6,
+                                backgroundColor: isDark
+                                    ? AppColors.surfaceSecondaryDark
+                                    : AppColors.surfaceSecondaryLight,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  isFull
+                                      ? AppColors.error
+                                      : AppColors.primary,
+                                ),
+                              ),
+                            ),
                             const SizedBox(height: 14),
+                            // Register / Cancel Action Button
                             SizedBox(
                               width: double.infinity,
                               child: isRegistered
@@ -274,57 +496,44 @@ class _EventRegistrationScreenState extends State<EventRegistrationScreen> {
                                           color: AppColors.error,
                                         ),
                                       ),
-                                      onPressed: () async {
-                                        await controller.toggleRegistration(
-                                          event.id,
-                                        );
-                                        if (context.mounted) {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                'Cancelled registration for ${event.title}',
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                      },
+                                      onPressed: () =>
+                                          _handleCancelRegistration(
+                                        controller: controller,
+                                        eventId: event.id,
+                                        eventTitle: event.title,
+                                        user: currentUser,
+                                      ),
                                       icon: const Icon(
                                         Icons.check_circle,
                                         size: 16,
                                         color: AppColors.success,
                                       ),
                                       label: const Text(
-                                        'Registered (Click to Cancel)',
+                                        'Enrolled (Click to Cancel)',
                                       ),
                                     )
                                   : ElevatedButton.icon(
-                                      onPressed: isFull
+                                      onPressed: (isFull || isClosed)
                                           ? null
-                                          : () async {
-                                              await controller
-                                                  .toggleRegistration(event.id);
-                                              if (context.mounted) {
-                                                ScaffoldMessenger.of(
-                                                  context,
-                                                ).showSnackBar(
-                                                  SnackBar(
-                                                    content: Text(
-                                                      'Successfully registered for ${event.title}! (+${event.activityPoints} credits)',
-                                                    ),
-                                                  ),
-                                                );
-                                              }
-                                            },
-                                      icon: const Icon(
-                                        Icons.app_registration,
+                                          : () => _handleRegister(
+                                                controller: controller,
+                                                eventId: event.id,
+                                                user: currentUser,
+                                              ),
+                                      icon: Icon(
+                                        isClosed
+                                            ? Icons.block
+                                            : Icons.app_registration,
                                         size: 16,
                                       ),
                                       label: Text(
-                                        isFull
-                                            ? 'Capacity Reached'
-                                            : 'Register Now',
+                                        isClosed
+                                            ? (event.status == 'Cancelled'
+                                                ? 'Event Cancelled'
+                                                : 'Registration Closed')
+                                            : (isFull
+                                                ? 'Capacity Reached'
+                                                : 'Register Now'),
                                       ),
                                     ),
                             ),

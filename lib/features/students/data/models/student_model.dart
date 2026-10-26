@@ -33,6 +33,10 @@ class StudentModel {
     required this.enrolledAt,
   });
 
+  // Aliases for Part 3 requirement specifications
+  String get studentId => rollNumber;
+  List<String> get interests => preferredCategories;
+  DateTime get createdAt => enrolledAt;
   bool get isAtRisk => riskLevel == 'High';
 
   StudentModel copyWith({
@@ -73,6 +77,7 @@ class StudentModel {
 
   Map<String, dynamic> toJson() => {
     'id': id,
+    'studentId': rollNumber,
     'rollNumber': rollNumber,
     'name': name,
     'email': email,
@@ -86,11 +91,14 @@ class StudentModel {
     'riskLevel': riskLevel,
     'attendanceRate': attendanceRate,
     'preferredCategories': preferredCategories,
+    'interests': preferredCategories,
     'enrolledAt': enrolledAt.toIso8601String(),
+    'createdAt': enrolledAt.toIso8601String(),
   };
 
   Map<String, dynamic> toFirestore() => {
     'id': id,
+    'studentId': rollNumber,
     'rollNumber': rollNumber,
     'name': name,
     'email': email,
@@ -104,55 +112,72 @@ class StudentModel {
     'riskLevel': riskLevel,
     'attendanceRate': attendanceRate,
     'preferredCategories': preferredCategories,
+    'interests': preferredCategories,
     'enrolledAt': enrolledAt.toIso8601String(),
+    'createdAt': enrolledAt.toIso8601String(),
     'updatedAt': DateTime.now().toIso8601String(),
   };
 
-  factory StudentModel.fromJson(Map<String, dynamic> json) => StudentModel(
-    id: json['id'] as String? ?? '',
-    rollNumber: json['rollNumber'] as String? ?? '',
-    name: json['name'] as String? ?? '',
-    email: json['email'] as String? ?? '',
-    department: json['department'] as String? ?? '',
-    year: json['year'] as String? ?? '',
-    section: json['section'] as String? ?? '',
-    cgpa: (json['cgpa'] as num?)?.toDouble() ?? 0.0,
-    totalEventsAttended: (json['totalEventsAttended'] as num?)?.toInt() ?? 0,
-    activityPoints: (json['activityPoints'] as num?)?.toInt() ?? 0,
-    clusterGroup: json['clusterGroup'] as String? ?? 'General',
-    riskLevel: json['riskLevel'] as String? ?? 'Low',
-    attendanceRate: (json['attendanceRate'] as num?)?.toDouble() ?? 100.0,
-    preferredCategories: json['preferredCategories'] != null
-        ? List<String>.from(json['preferredCategories'] as List)
-        : [],
-    enrolledAt: json['enrolledAt'] != null
-        ? DateTime.tryParse(json['enrolledAt'] as String) ?? DateTime.now()
-        : DateTime.now(),
-  );
-
-  factory StudentModel.fromFirestore(Map<String, dynamic> json, String docId) =>
-      StudentModel(
-        id: (json['id'] as String?)?.isNotEmpty == true
-            ? json['id'] as String
-            : docId,
-        rollNumber: json['rollNumber'] as String? ?? '',
-        name: json['name'] as String? ?? '',
-        email: json['email'] as String? ?? '',
-        department: json['department'] as String? ?? '',
-        year: json['year'] as String? ?? '',
-        section: json['section'] as String? ?? '',
-        cgpa: (json['cgpa'] as num?)?.toDouble() ?? 0.0,
-        totalEventsAttended:
-            (json['totalEventsAttended'] as num?)?.toInt() ?? 0,
-        activityPoints: (json['activityPoints'] as num?)?.toInt() ?? 0,
-        clusterGroup: json['clusterGroup'] as String? ?? 'General',
-        riskLevel: json['riskLevel'] as String? ?? 'Low',
-        attendanceRate: (json['attendanceRate'] as num?)?.toDouble() ?? 100.0,
-        preferredCategories: json['preferredCategories'] != null
+  factory StudentModel.fromJson(Map<String, dynamic> json) {
+    final roll = (json['studentId'] ?? json['rollNumber']) as String? ?? '';
+    final cats = json['interests'] != null
+        ? List<String>.from(json['interests'] as List)
+        : (json['preferredCategories'] != null
             ? List<String>.from(json['preferredCategories'] as List)
-            : [],
-        enrolledAt: json['enrolledAt'] != null
-            ? DateTime.tryParse(json['enrolledAt'] as String) ?? DateTime.now()
-            : DateTime.now(),
-      );
+            : <String>[]);
+    final created = json['createdAt'] ?? json['enrolledAt'];
+
+    return StudentModel(
+      id: json['id'] as String? ?? '',
+      rollNumber: roll,
+      name: json['name'] as String? ?? '',
+      email: json['email'] as String? ?? '',
+      department: json['department'] as String? ?? '',
+      year: json['year'] as String? ?? '',
+      section: json['section'] as String? ?? 'A',
+      cgpa: (json['cgpa'] as num?)?.toDouble() ?? 8.0,
+      totalEventsAttended: (json['totalEventsAttended'] as num?)?.toInt() ?? 0,
+      activityPoints: (json['activityPoints'] as num?)?.toInt() ?? 0,
+      clusterGroup: json['clusterGroup'] as String? ?? 'Tech Innovators',
+      riskLevel: json['riskLevel'] as String? ?? 'Low',
+      attendanceRate: (json['attendanceRate'] as num?)?.toDouble() ?? 100.0,
+      preferredCategories: cats,
+      enrolledAt: created != null
+          ? DateTime.tryParse(created as String) ?? DateTime.now()
+          : DateTime.now(),
+    );
+  }
+
+  factory StudentModel.fromFirestore(Map<String, dynamic> json, String docId) {
+    final roll = (json['studentId'] ?? json['rollNumber']) as String? ?? '';
+    final cats = json['interests'] != null
+        ? List<String>.from(json['interests'] as List)
+        : (json['preferredCategories'] != null
+            ? List<String>.from(json['preferredCategories'] as List)
+            : <String>[]);
+    final created = json['createdAt'] ?? json['enrolledAt'];
+
+    return StudentModel(
+      id: (json['id'] as String?)?.isNotEmpty == true
+          ? json['id'] as String
+          : docId,
+      rollNumber: roll,
+      name: json['name'] as String? ?? '',
+      email: json['email'] as String? ?? '',
+      department: json['department'] as String? ?? '',
+      year: json['year'] as String? ?? '',
+      section: json['section'] as String? ?? 'A',
+      cgpa: (json['cgpa'] as num?)?.toDouble() ?? 8.0,
+      totalEventsAttended:
+          (json['totalEventsAttended'] as num?)?.toInt() ?? 0,
+      activityPoints: (json['activityPoints'] as num?)?.toInt() ?? 0,
+      clusterGroup: json['clusterGroup'] as String? ?? 'General Cohort',
+      riskLevel: json['riskLevel'] as String? ?? 'Low',
+      attendanceRate: (json['attendanceRate'] as num?)?.toDouble() ?? 100.0,
+      preferredCategories: cats,
+      enrolledAt: created != null
+          ? DateTime.tryParse(created as String) ?? DateTime.now()
+          : DateTime.now(),
+    );
+  }
 }

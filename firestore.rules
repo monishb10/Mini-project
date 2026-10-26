@@ -62,10 +62,29 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // 2. Events & Activities Collection
+    // 2. Students Master Roster & Profiles
+    // Part 3: Only authorized admins can create or modify protected student records.
+    // ==========================================
+    match /students/{studentDocId} {
+      // Students can only read their personal record
+      // Faculty and Admin can inspect the full departmental roster
+      allow read: if isAuthenticated() && (
+        isAdmin() || isFaculty() ||
+        resource.data.id == request.auth.uid ||
+        resource.data.studentId == getUserData().studentId ||
+        resource.data.email == request.auth.token.email
+      );
+
+      // Only authorized Admins can create, update, or delete student records
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ==========================================
+    // 3. Events & Institutional Activities
+    // Part 3: Create, view, update, and cancel events.
     // ==========================================
     match /events/{eventId} {
-      // All authenticated students and faculty can browse events
+      // All authenticated students and faculty can browse events catalog
       allow read: if isAuthenticated();
 
       // Only Faculty and Administrators can publish, edit, or cancel events
@@ -73,7 +92,39 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // 3. Attendance Verification & Roll Calls
+    // 4. Student Event Registrations Collection
+    // Part 3: Dedicated registrations collection (registrations/{eventId}_{studentId})
+    // ==========================================
+    match /registrations/{registrationId} {
+      // Students can inspect their own registrations; Faculty/Admin can view all
+      allow read: if isAuthenticated() && (
+        isAdmin() || isFaculty() ||
+        resource.data.studentId == request.auth.uid ||
+        resource.data.studentEmail == request.auth.token.email
+      );
+
+      // Students can register themselves; Admin can also create registrations
+      allow create: if isAuthenticated() && (
+        isAdmin() || (
+          request.resource.data.studentId == request.auth.uid
+        )
+      );
+
+      // Students can update/cancel their own registration; Faculty/Admin can manage
+      allow update: if isAuthenticated() && (
+        isAdmin() || isFaculty() ||
+        resource.data.studentId == request.auth.uid
+      );
+
+      // Only Admin or the student who registered can delete a registration
+      allow delete: if isAuthenticated() && (
+        isAdmin() || resource.data.studentId == request.auth.uid
+      );
+    }
+
+    // ==========================================
+    // 5. Attendance Verification & Roll Calls
+    // Part 3: Faculty/Admin roll-call (Present, Absent, Excused) and QR check-in
     // ==========================================
     match /attendance/{attendanceId} {
       // Students can only view their own attendance records
@@ -89,23 +140,7 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // 4. Students Master Roster & Credit Log
-    // ==========================================
-    match /students/{studentDocId} {
-      // Students can only read their personal record
-      // Faculty and Admin can inspect the full departmental roster
-      allow read: if isAuthenticated() && (
-        isFaculty() || isAdmin() ||
-        resource.data.id == request.auth.uid ||
-        resource.data.email == request.auth.token.email
-      );
-
-      // Only Faculty Advisors and Administrators can mutate student records
-      allow create, update, delete: if isFaculty() || isAdmin();
-    }
-
-    // ==========================================
-    // 5. Pattern Mining & Association Rules
+    // 6. Pattern Mining & Association Rules
     // ==========================================
     match /pattern_mining/{docId} {
       // Mined patterns and association rules are readable by all authenticated users
@@ -116,7 +151,7 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // 6. Accreditation & Audit Reports
+    // 7. Accreditation & Audit Reports
     // ==========================================
     match /reports/{reportId} {
       // Confidential accreditation reports (NAAC, NBA) are restricted to Faculty & Admin
