@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../../../core/services/firebase_service.dart';
 import '../../data/models/student_model.dart';
+import '../../data/repositories/firestore_student_repository.dart';
 import '../../data/repositories/student_repository.dart';
 
 class StudentController extends ChangeNotifier {
@@ -15,7 +17,10 @@ class StudentController extends ChangeNotifier {
   String _searchQuery = '';
 
   StudentController({StudentRepository? repository})
-    : _repository = repository ?? MockStudentRepository() {
+      : _repository = repository ??
+            (FirebaseService.isInitialized
+                ? FirestoreStudentRepository()
+                : MockStudentRepository()) {
     loadStudents();
   }
 

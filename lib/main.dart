@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'core/constants/app_constants.dart';
+import 'core/services/firebase_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
 import 'features/analytics/presentation/controllers/analytics_controller.dart';
@@ -12,8 +13,9 @@ import 'features/reports/presentation/controllers/report_controller.dart';
 import 'features/students/presentation/controllers/student_controller.dart';
 import 'routing/app_router.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await FirebaseService.initialize();
   runApp(const MyApp());
 }
 

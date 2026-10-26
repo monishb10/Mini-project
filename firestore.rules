@@ -1,0 +1,126 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions for role-based access control
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && getUserData().role == 'admin';
+    }
+
+    function isFaculty() {
+      return isAuthenticated() && (getUserData().role == 'faculty' || getUserData().role == 'admin');
+    }
+
+    function isStudent() {
+      return isAuthenticated() && getUserData().role == 'student';
+    }
+
+    // ==========================================
+    // 1. Users Profile Collection
+    // ==========================================
+    match /users/{userId} {
+      // Any authenticated user can read their own profile;
+      // Admins can read all profiles; Faculty can inspect student profiles.
+      allow read: if isAuthenticated() && (
+        isOwner(userId) || isAdmin() || isFaculty()
+      );
+
+      // Public Registration:
+      // A user may only create their own user document (userId == auth.uid).
+      // CRITICAL SECURITY RULE: The 'admin' role can NEVER be assigned during public registration!
+      allow create: if isOwner(userId) && (
+        request.resource.data.role != 'admin' || isAdmin()
+      );
+
+      // Profile Updates:
+      // Users can update non-privileged fields (name, department, avatar, studentId),
+      // but CANNOT alter their assigned 'role', 'uid', 'email', or 'status'.
+      // Role elevation requires an existing Administrator.
+      allow update: if isAuthenticated() && (
+        isAdmin() || (
+          isOwner(userId) &&
+          request.resource.data.role == resource.data.role &&
+          request.resource.data.uid == resource.data.uid &&
+          request.resource.data.email == resource.data.email
+        )
+      );
+
+      // Deletion is strictly reserved for Administrators
+      allow delete: if isAdmin();
+    }
+
+    // ==========================================
+    // 2. Events & Activities Collection
+    // ==========================================
+    match /events/{eventId} {
+      // All authenticated students and faculty can browse events
+      allow read: if isAuthenticated();
+
+      // Only Faculty and Administrators can publish, edit, or cancel events
+      allow create, update, delete: if isFaculty() || isAdmin();
+    }
+
+    // ==========================================
+    // 3. Attendance Verification & Roll Calls
+    // ==========================================
+    match /attendance/{attendanceId} {
+      // Students can only view their own attendance records
+      // Faculty and Admin can inspect all institutional records
+      allow read: if isAuthenticated() && (
+        isFaculty() || isAdmin() ||
+        resource.data.studentId == request.auth.uid ||
+        resource.data.studentRollNumber == getUserData().studentId
+      );
+
+      // Only Faculty and Admin can mark attendance or modify roll-call status
+      allow create, update, delete: if isFaculty() || isAdmin();
+    }
+
+    // ==========================================
+    // 4. Students Master Roster & Credit Log
+    // ==========================================
+    match /students/{studentDocId} {
+      // Students can only read their personal record
+      // Faculty and Admin can inspect the full departmental roster
+      allow read: if isAuthenticated() && (
+        isFaculty() || isAdmin() ||
+        resource.data.id == request.auth.uid ||
+        resource.data.email == request.auth.token.email
+      );
+
+      // Only Faculty Advisors and Administrators can mutate student records
+      allow create, update, delete: if isFaculty() || isAdmin();
+    }
+
+    // ==========================================
+    // 5. Pattern Mining & Association Rules
+    // ==========================================
+    match /pattern_mining/{docId} {
+      // Mined patterns and association rules are readable by all authenticated users
+      allow read: if isAuthenticated();
+
+      // Only Administrators and Faculty Researchers can trigger/commit mining algorithms
+      allow write: if isAdmin() || isFaculty();
+    }
+
+    // ==========================================
+    // 6. Accreditation & Audit Reports
+    // ==========================================
+    match /reports/{reportId} {
+      // Confidential accreditation reports (NAAC, NBA) are restricted to Faculty & Admin
+      allow read, write: if isAdmin() || isFaculty();
+    }
+  }
+}

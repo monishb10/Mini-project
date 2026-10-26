@@ -171,89 +171,112 @@ class AppSidebar extends StatelessWidget {
             ),
           ),
 
-          // Scrollable Navigation Links
+          // Scrollable Navigation Links filtered by User Role
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               children: [
                 _buildSectionHeader('DASHBOARDS'),
-                _buildNavItem(
-                  context: context,
-                  title: 'Admin Dashboard',
-                  icon: Icons.dashboard_rounded,
-                  route: '/admin/dashboard',
-                  isActive: currentRoute == '/admin/dashboard',
-                ),
-                _buildNavItem(
-                  context: context,
-                  title: 'Faculty Dashboard',
-                  icon: Icons.school_rounded,
-                  route: '/faculty/dashboard',
-                  isActive: currentRoute == '/faculty/dashboard',
-                ),
-                _buildNavItem(
-                  context: context,
-                  title: 'Student Dashboard',
-                  icon: Icons.person_pin_rounded,
-                  route: '/student/dashboard',
-                  isActive: currentRoute == '/student/dashboard',
-                ),
+                if (authController.isAdmin)
+                  _buildNavItem(
+                    context: context,
+                    title: 'Admin Dashboard',
+                    icon: Icons.dashboard_rounded,
+                    route: '/admin/dashboard',
+                    isActive: currentRoute == '/admin/dashboard',
+                  ),
+                if (authController.isAdmin || authController.isFaculty)
+                  _buildNavItem(
+                    context: context,
+                    title: 'Faculty Dashboard',
+                    icon: Icons.school_rounded,
+                    route: '/faculty/dashboard',
+                    isActive: currentRoute == '/faculty/dashboard',
+                  ),
+                if (authController.isAdmin || authController.isStudent)
+                  _buildNavItem(
+                    context: context,
+                    title: 'Student Dashboard',
+                    icon: Icons.person_pin_rounded,
+                    route: '/student/dashboard',
+                    isActive: currentRoute == '/student/dashboard',
+                  ),
 
-                const SizedBox(height: 14),
-                _buildSectionHeader('CORE MANAGEMENT'),
-                _buildNavItem(
-                  context: context,
-                  title: 'Students Roster',
-                  icon: Icons.people_alt_rounded,
-                  route: '/students',
-                  isActive: currentRoute == '/students',
-                ),
-                _buildNavItem(
-                  context: context,
-                  title: 'Event Management',
-                  icon: Icons.event_available_rounded,
-                  route: '/events',
-                  isActive: currentRoute == '/events',
-                ),
-                _buildNavItem(
-                  context: context,
-                  title: 'Event Registration',
-                  icon: Icons.app_registration_rounded,
-                  route: '/event-registration',
-                  isActive: currentRoute == '/event-registration',
-                ),
-                _buildNavItem(
-                  context: context,
-                  title: 'Attendance Roll',
-                  icon: Icons.fact_check_rounded,
-                  route: '/attendance',
-                  isActive: currentRoute == '/attendance',
-                ),
+                if (authController.isAdmin || authController.isFaculty) ...[
+                  const SizedBox(height: 14),
+                  _buildSectionHeader('CORE MANAGEMENT'),
+                  _buildNavItem(
+                    context: context,
+                    title: 'Students Roster',
+                    icon: Icons.people_alt_rounded,
+                    route: '/students',
+                    isActive: currentRoute == '/students',
+                  ),
+                  _buildNavItem(
+                    context: context,
+                    title: 'Event Management',
+                    icon: Icons.event_available_rounded,
+                    route: '/events',
+                    isActive: currentRoute == '/events',
+                  ),
+                  _buildNavItem(
+                    context: context,
+                    title: 'Event Registration',
+                    icon: Icons.app_registration_rounded,
+                    route: '/event-registration',
+                    isActive: currentRoute == '/event-registration',
+                  ),
+                  _buildNavItem(
+                    context: context,
+                    title: 'Attendance Roll',
+                    icon: Icons.fact_check_rounded,
+                    route: '/attendance',
+                    isActive: currentRoute == '/attendance',
+                  ),
 
-                const SizedBox(height: 14),
-                _buildSectionHeader('INTELLIGENCE & MINING'),
-                _buildNavItem(
-                  context: context,
-                  title: 'Participation Analytics',
-                  icon: Icons.pie_chart_outline_rounded,
-                  route: '/analytics',
-                  isActive: currentRoute == '/analytics',
-                ),
-                _buildNavItem(
-                  context: context,
-                  title: 'Pattern Mining (Apriori)',
-                  icon: Icons.scatter_plot_rounded,
-                  route: '/pattern-mining',
-                  isActive: currentRoute == '/pattern-mining',
-                  badge: 'Core AI',
-                ),
-                _buildNavItem(
-                  context: context,
-                  title: 'Accreditation Reports',
-                  icon: Icons.description_outlined,
-                  route: '/reports',
-                  isActive: currentRoute == '/reports',
-                ),
+                  const SizedBox(height: 14),
+                  _buildSectionHeader('INTELLIGENCE & MINING'),
+                  _buildNavItem(
+                    context: context,
+                    title: 'Participation Analytics',
+                    icon: Icons.pie_chart_outline_rounded,
+                    route: '/analytics',
+                    isActive: currentRoute == '/analytics',
+                  ),
+                  _buildNavItem(
+                    context: context,
+                    title: 'Pattern Mining (Apriori)',
+                    icon: Icons.scatter_plot_rounded,
+                    route: '/pattern-mining',
+                    isActive: currentRoute == '/pattern-mining',
+                    badge: 'Core AI',
+                  ),
+                  _buildNavItem(
+                    context: context,
+                    title: 'Accreditation Reports',
+                    icon: Icons.description_outlined,
+                    route: '/reports',
+                    isActive: currentRoute == '/reports',
+                  ),
+                ] else if (authController.isStudent) ...[
+                  const SizedBox(height: 14),
+                  _buildSectionHeader('ACTIVITIES & REGISTRATION'),
+                  _buildNavItem(
+                    context: context,
+                    title: 'Event Registration',
+                    icon: Icons.app_registration_rounded,
+                    route: '/event-registration',
+                    isActive: currentRoute == '/event-registration',
+                    badge: 'Open',
+                  ),
+                  _buildNavItem(
+                    context: context,
+                    title: 'Events Schedule',
+                    icon: Icons.event_available_rounded,
+                    route: '/events',
+                    isActive: currentRoute == '/events',
+                  ),
+                ],
 
                 const SizedBox(height: 14),
                 _buildSectionHeader('PREFERENCES'),
